@@ -314,12 +314,7 @@ public:
 		int>::type = 0>
 	Ucl(const M &m) {
 		obj.reset (ucl_object_typed_new (UCL_OBJECT));
-		auto cobj = obj.get ();
-
-		for (const auto &e : m) {
-			ucl_object_insert_key (cobj, ucl_object_ref (e.second.obj.get()),
-					e.first.data (), e.first.size (), true);
-		}
+    *this += m;
 	}
 
 	// Implicit constructor: vector-like objects (std::list, std::vector, std::set, etc)
@@ -422,6 +417,21 @@ public:
 		}
 
 		return Ucl (nullptr);
+	}
+
+	// += operator: map-like objects (std::map, std::unordered_map, etc)
+	template <class M, typename std::enable_if<
+		std::is_constructible<std::string, typename M::key_type>::value
+		&& std::is_constructible<Ucl, typename M::mapped_type>::value,
+		int>::type = 0>
+	Ucl& operator+= (const M &m) {
+		auto cobj = obj.get ();
+
+		for (const auto &e : m) {
+			ucl_object_insert_key (cobj, ucl_object_ref (e.second.obj.get()),
+					e.first.data (), e.first.size (), true);
+		}
+    return *this;
 	}
 
 	inline Ucl operator[] (size_t i) const
