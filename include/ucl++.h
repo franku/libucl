@@ -148,7 +148,7 @@ private:
 	template <typename C, typename P>
 	static Ucl parse_with_strategy_function (C config_func, P parse_func, std::string &err)
 	{
-		auto parser = ucl_parser_new (UCL_PARSER_DEFAULT);
+		auto parser = ucl_parser_new (UCL_PARSER_DEFAULT | UCL_PARSER_SAVE_COMMENTS);
 
 		config_func (parser);
 
@@ -161,15 +161,21 @@ private:
 		}
 
 		auto obj = ucl_parser_get_object (parser);
-		ucl_parser_free (parser);
 
 		// Obj will handle ownership
-		return Ucl (obj);
+    auto u = Ucl(obj);
+    u.comments.reset(ucl_object_ref (ucl_parser_get_comments (parser)));
+
+    ucl_parser_free (parser);
+
+		return u;
 	}
 
 	std::unique_ptr<ucl_object_t, ucl_deleter> obj;
 
 public:
+  std::unique_ptr<ucl_object_t, ucl_deleter> comments;
+
 	struct macro_handler_s {
 		ucl_macro_handler         handler;
 		ucl_context_macro_handler ctx_handler;
@@ -271,10 +277,12 @@ public:
 
 	Ucl(const Ucl &other) {
 		obj.reset (ucl_object_ref (other.obj.get()));
+		obj.reset (ucl_object_ref (other.comments.get()));
 	}
 
 	Ucl(Ucl &&other) {
 		obj.swap (other.obj);
+		comments.swap (other.comments);
 	}
 
 	Ucl() noexcept {
@@ -451,7 +459,7 @@ public:
 		cbdata = Ucl::default_emit_funcs();
 		cbdata.ud = reinterpret_cast<void *>(&out);
 
-		ucl_object_emit_full (obj.get(), type, &cbdata, nullptr);
+		ucl_object_emit_full (obj.get(), type, &cbdata, comments.get());
 	}
 
 	std::string dump (ucl_emitter_t type = UCL_EMIT_JSON) const
